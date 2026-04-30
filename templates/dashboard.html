@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Dashboard — ThirtyDays</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0f1e;
+            --card: #111827;
+            --border: rgba(255,255,255,0.08);
+            --text: #e8eaed;
+            --muted: #718096;
+            --blue: #63b3ed;
+            --blue-dim: rgba(99,179,237,0.15);
+            --green: #68d391;
+            --green-dim: rgba(104,211,145,0.15);
+            --red: #fc8181;
+            --red-dim: rgba(252,129,129,0.15);
+            --amber: #f6ad55;
+            --amber-dim: rgba(246,173,85,0.15);
+        }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        .container { max-width: 860px; margin: 0 auto; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 48px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+        .logo {
+            font-size: 20px;
+            font-weight: 800;
+            color: #fff;
+        }
+        .logo span { color: var(--blue); }
+        .user-email {
+            font-size: 14px;
+            color: var(--muted);
+            background: var(--card);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        h1 { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+        .subtitle { color: var(--muted); font-size: 15px; margin-bottom: 40px; }
+        
+        /* Grants */
+        .grant-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+        .grant-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            {% if grant.days_remaining > 14 %}
+            background: linear-gradient(90deg, #68d391, #63b3ed);
+            {% elif grant.days_remaining > 7 %}
+            background: linear-gradient(90deg, #f6ad55, #f6e05e);
+            {% else %}
+            background: linear-gradient(90deg, #fc8181, #f6ad55);
+            {% endif %}
+        }
+        .grant-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .grant-company {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .grant-type {
+            font-size: 12px;
+            background: var(--blue-dim);
+            color: var(--blue);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        .countdown-hero {
+            text-align: center;
+            padding: 24px 0;
+            margin-bottom: 24px;
+        }
+        .countdown-number {
+            font-size: 80px;
+            font-weight: 800;
+            line-height: 1;
+            {% if grant.days_remaining > 14 %}
+            color: var(--green);
+            {% elif grant.days_remaining > 7 %}
+            color: var(--amber);
+            {% else %}
+            color: var(--red);
+            {% endif %}
+        }
+        .countdown-label {
+            font-size: 16px;
+            color: var(--muted);
+            margin-top: 8px;
+            font-weight: 500;
+        }
+        .countdown-deadline {
+            font-size: 14px;
+            color: var(--muted);
+            margin-top: 12px;
+        }
+        .countdown-deadline strong { color: var(--text); }
+        .savings-banner {
+            background: var(--green-dim);
+            border: 1px solid rgba(104,211,145,0.25);
+            border-radius: 10px;
+            padding: 16px 20px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .savings-label { font-size: 12px; color: var(--green); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        .savings-amount { font-size: 32px; font-weight: 800; color: var(--green); margin-top: 4px; }
+        .savings-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+        
+        .grant-meta {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .meta-item { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 14px; }
+        .meta-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .meta-value { font-size: 16px; font-weight: 700; color: #fff; }
+        
+        /* Checklist */
+        .checklist { margin-bottom: 24px; }
+        .checklist-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+        .check-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .check-item:last-child { border-bottom: none; }
+        .check-icon {
+            width: 22px; height: 22px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        .check-icon.done { background: var(--green); color: #0a0f1e; }
+        .check-icon.pending { background: var(--blue-dim); color: var(--blue); }
+        .check-icon.urgent { background: var(--red-dim); color: var(--red); }
+        .check-content { flex: 1; }
+        .check-label { font-size: 15px; color: var(--text); font-weight: 500; }
+        .check-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+        
+        .grant-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+        .btn {
+            padding: 12px 24px;
+            border-radius: 9px;
+            font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: transform 0.15s, box-shadow 0.15s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--blue), #4299e1);
+            color: #0a0f1e;
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,179,237,0.3); }
+        .btn-secondary {
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+        
+        /* Protected state */
+        .protected-banner {
+            background: var(--green-dim);
+            border: 1px solid rgba(104,211,145,0.3);
+            border-radius: 16px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .protected-icon { font-size: 48px; margin-bottom: 16px; }
+        .protected-title { font-size: 28px; font-weight: 800; color: var(--green); margin-bottom: 8px; }
+        .protected-sub { font-size: 16px; color: var(--muted); margin-bottom: 24px; line-height: 1.6; }
+        
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            background: var(--card);
+            border: 2px dashed var(--border);
+            border-radius: 16px;
+            margin-bottom: 24px;
+        }
+        .empty-icon { font-size: 48px; margin-bottom: 20px; opacity: 0.5; }
+        .empty-title { font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+        .empty-sub { color: var(--muted); margin-bottom: 28px; }
+        
+        /* Flash messages */
+        .flash {
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin-bottom: 24px;
+            font-size: 15px;
+            font-weight: 500;
+        }
+        .flash-success { background: var(--green-dim); color: var(--green); border: 1px solid rgba(104,211,145,0.3); }
+        .flash-error { background: var(--red-dim); color: var(--red); border: 1px solid rgba(252,129,129,0.3); }
+        .flash-info { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(99,179,237,0.3); }
+        
+        .add-grant-cta {
+            background: linear-gradient(135deg, rgba(99,179,237,0.1), rgba(159,122,234,0.1));
+            border: 1px solid rgba(99,179,237,0.2);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .add-grant-cta p { color: var(--muted); margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for cat, msg in messages %}
+                <div class="flash flash-{{ cat }}">{{ msg }}</div>
+            {% endfor %}
+        {% endwith %}
+        
+        <header>
+            <div class="logo">Thirty<span>Days</span></div>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <a href="/settings?email={{ email }}" style="font-size:13px;color:var(--muted);text-decoration:none;padding:8px 12px;border-radius:8px;transition:all 0.2s;" onmouseover="this.style.color='#63b3ed';this.style.background='rgba(99,179,237,0.1)'" onmouseout="this.style.color='var(--muted)';this.style.background='transparent'">Settings</a>
+                <div class="user-email">{{ email }}</div>
+            </div>
+        </header>
+        
+        <h1>Your Protection Dashboard</h1>
+        <p class="subtitle">Every 83(b) election you track. Every deadline you won't miss.</p>
+        
+        {% if not grants %}
+        <div class="empty-state">
+            <div class="empty-icon">&#128176;</div>
+            <div class="empty-title">No grants tracked yet</div>
+            <div class="empty-sub">Enter your first equity grant to start your 30-day countdown.</div>
+            <a href="/grant/new?email={{ email }}" class="btn btn-primary">+ Add my first grant</a>
+        </div>
+        {% else %}
+        <div class="add-grant-cta">
+            <p>Have another grant to track?</p>
+            <a href="/grant/new?email={{ email }}" class="btn btn-secondary">+ Add another grant</a>
+        </div>
+        
+        {% for grant in grants %}
+        <div class="grant-card">
+            <div class="grant-header">
+                <div class="grant-company">{{ grant.company_name or 'My Equity Grant' }}</div>
+                <div class="grant-type">{{ grant.grant_type }}</div>
+            </div>
+            
+            {% if grant.filing and grant.filing.status in ['filed', 'confirmed'] %}
+            <!-- Protected state -->
+            <div class="protected-banner">
+                <div class="protected-icon">&#127942;</div>
+                <div class="protected-title">You're Fully Protected</div>
+                <div class="protected-sub">
+                    Your 83(b) election is filed. Every share that vests will be taxed<br>
+                    at your <strong>{{ grant.strike_price }}</strong> strike price — not ordinary income rates.<br><br>
+                    {% if grant.filing and grant.filing.filed_date %}
+                    Filed: {{ grant.filing.filed_date }}<br>
+                    {% endif %}
+                    {% if grant.filing and grant.filing.certified_mail_tracking %}
+                    Certified mail: {{ grant.filing.certified_mail_tracking }}<br>
+                    {% endif %}
+                    {% if grant.savings %}
+                    <span style="font-size:20px;font-weight:800;color:var(--green);display:block;margin-top:8px;">
+                        ${{ "{:,.0f}".format(grant.savings) }} secured
+                    </span>
+                    {% endif %}
+                </div>
+                <a href="/grant/{{ grant.id }}/filing?email={{ email }}" class="btn btn-secondary" style="border-color:rgba(104,211,145,0.3);">View filing details</a>
+            </div>
+            {% else %}
+            <!-- Active countdown -->
+            <div class="countdown-hero">
+                <div class="countdown-number">{{ grant.days_remaining }}</div>
+                <div class="countdown-label">days remaining to file your 83(b)</div>
+                <div class="countdown-deadline">Filing deadline: <strong>{{ grant.filing_deadline }}</strong></div>
+            </div>
+            
+            {% if grant.savings %}
+            <div class="savings-banner">
+                <div class="savings-label">Potential Tax Savings with 83(b)</div>
+                <div class="savings-amount">${{ "{:,.0f}".format(grant.savings) }}</div>
+                <div class="savings-note">If you file in time. Gone forever if you don't.</div>
+            </div>
+            {% endif %}
+            
+            <div class="grant-meta">
+                <div class="meta-item">
+                    <div class="meta-label">Shares</div>
+                    <div class="meta-value">{{ "{:,}".format(grant.shares) if grant.shares else '—' }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Strike Price</div>
+                    <div class="meta-value">${{ "%.4f"|format(grant.strike_price) if grant.strike_price else '—' }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">FMV at Grant</div>
+                    <div class="meta-value">${{ "%.2f"|format(grant.fair_market_value) if grant.fair_market_value else '—' }}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">Grant Date</div>
+                    <div class="meta-value">{{ grant.grant_date }}</div>
+                </div>
+            </div>
+            
+            <div class="checklist">
+                <div class="checklist-title">Your Protection Checklist</div>
+                
+                <div class="check-item">
+                    <div class="check-icon done">&#10003;</div>
+                    <div class="check-content">
+                        <div class="check-label">Grant date recorded</div>
+                        <div class="check-sub">Day 1 — {{ grant.grant_date }}</div>
+                    </div>
+                </div>
+                <div class="check-item">
+                    <div class="check-icon done">&#10003;</div>
+                    <div class="check-content">
+                        <div class="check-label">Filing deadline calculated</div>
+                        <div class="check-sub">{{ grant.filing_deadline }} — {{ grant.days_remaining }} days left</div>
+                    </div>
+                </div>
+                {% if grant.days_remaining <= 14 %}
+                <div class="check-item">
+                    <div class="check-icon urgent">!</div>
+                    <div class="check-content">
+                        <div class="check-label">Time to file — 14 days or less</div>
+                        <div class="check-sub">Download Form 8319, sign, and mail with certified return receipt</div>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="check-item">
+                    <div class="check-icon {% if grant.filing and grant.filing.status in ['filed','confirmed'] %}done{% else %}pending{% endif %}">
+                        {% if grant.filing and grant.filing.status in ['filed','confirmed'] %}&#10003;{% else %}&#10140;{% endif %}
+                    </div>
+                    <div class="check-content">
+                        <div class="check-label">File IRS Form 8319</div>
+                        <div class="check-sub">Mail to IRS with certified return receipt requested</div>
+                    </div>
+                </div>
+                <div class="check-item">
+                    <div class="check-icon {% if grant.filing and grant.filing.state_filed %}done{% else %}pending{% endif %}">
+                        {% if grant.filing and grant.filing.state_filed %}&#10003;{% else %}&#10140;{% endif %}
+                    </div>
+                    <div class="check-content">
+                        <div class="check-label">File with your state tax authority</div>
+                        <div class="check-sub">{% if grant.state %}{{ grant.state }}{% else %}No state filing required{% endif %}</div>
+                    </div>
+                </div>
+                <div class="check-item">
+                    <div class="check-icon {% if grant.filing and grant.filing.irs_confirmed_date %}done{% else %}pending{% endif %}">
+                        {% if grant.filing and grant.filing.irs_confirmed_date %}&#10003;{% else %}&#10140;{% endif %}
+                    </div>
+                    <div class="check-content">
+                        <div class="check-label">Confirm IRS receipt</div>
+                        <div class="check-sub">Track certified mail. IRS takes 6-8 weeks to process.</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grant-actions">
+                <a href="/grant/{{ grant.id }}/filing?email={{ email }}" class="btn btn-primary">
+                    &#128221; Start filing walkthrough
+                </a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+
+    <script>
+    // ── Tab title countdown ──────────────────────────────────────────────────
+    (function() {
+        var grants = {{ grants | tojson }};
+        var urgent = grants.find(function(g) {
+            return g.filing && g.filing.status !== 'filed' && g.filing.status !== 'confirmed' && g.days_remaining <= 14;
+        });
+        var anyActive = grants.find(function(g) {
+            return g.filing && g.filing.status !== 'filed' && g.filing.status !== 'confirmed';
+        });
+
+        function updateTitle() {
+            if (urgent) {
+                document.title = '⚠️ ' + urgent.days_remaining + 'd — ' + (urgent.company_name || '83(b)') + ' | ThirtyDays';
+            } else if (anyActive) {
+                document.title = anyActive.days_remaining + ' days — ThirtyDays';
+            } else if (grants.length > 0 && grants[0].filing && (grants[0].filing.status === 'filed' || grants[0].filing.status === 'confirmed')) {
+                document.title = '✓ Protected — ThirtyDays';
+            } else {
+                document.title = 'Your Dashboard — ThirtyDays';
+            }
+        }
+        updateTitle();
+        // Refresh every 60 seconds in case the user leaves the tab open
+        setInterval(updateTitle, 60000);
+    })();
+    </script>
+</body>
+</html>

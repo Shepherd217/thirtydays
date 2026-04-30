@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThirtyDays — Never Miss Your 83(b) Election</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: #0a0f1e;
+            color: #e8eaed;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 680px;
+            width: 100%;
+            text-align: center;
+        }
+        .badge {
+            display: inline-block;
+            background: rgba(99, 179, 237, 0.1);
+            border: 1px solid rgba(99, 179, 237, 0.3);
+            color: #63b3ed;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 14px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 32px;
+        }
+        h1 {
+            font-size: clamp(36px, 8vw, 64px);
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #ffffff 0%, #a0aec0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        h1 .highlight {
+            background: linear-gradient(135deg, #63b3ed 0%, #9f7aea 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+        .subtitle {
+            font-size: 20px;
+            color: #a0aec0;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            max-width: 560px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .pain {
+            background: rgba(229, 62, 62, 0.1);
+            border: 1px solid rgba(229, 62, 62, 0.3);
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 40px;
+            text-align: left;
+        }
+        .pain-title {
+            color: #fc8181;
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        .pain-text {
+            color: #e8eaed;
+            font-size: 17px;
+            line-height: 1.5;
+        }
+        .pain-text strong {
+            color: #fc8181;
+        }
+        .signup-form {
+            margin-bottom: 32px;
+        }
+        .input-group {
+            display: flex;
+            gap: 12px;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+        input[type="email"] {
+            flex: 1;
+            padding: 16px 20px;
+            font-size: 16px;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        input[type="email"]:focus {
+            border-color: #63b3ed;
+            background: rgba(99, 179, 237, 0.05);
+        }
+        input[type="email"]::placeholder {
+            color: #718096;
+        }
+        button {
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #63b3ed 0%, #4299e1 100%);
+            color: #0a0f1e;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            white-space: nowrap;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(99, 179, 237, 0.35);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .social-proof {
+            color: #718096;
+            font-size: 14px;
+        }
+        .social-proof strong {
+            color: #63b3ed;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 60px;
+            text-align: left;
+        }
+        .feature {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .feature-icon {
+            font-size: 28px;
+            margin-bottom: 12px;
+        }
+        .feature-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #e8eaed;
+            margin-bottom: 6px;
+        }
+        .feature-desc {
+            font-size: 13px;
+            color: #718096;
+            line-height: 1.5;
+        }
+        .disclaimer {
+            margin-top: 48px;
+            font-size: 12px;
+            color: #4a5568;
+            line-height: 1.6;
+        }
+        @media (max-width: 520px) {
+            .input-group { flex-direction: column; }
+            button { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="badge">For Startup Employees</div>
+        <h1>You have <span class="highlight">30 days</span><br>to protect your equity</h1>
+        <p class="subtitle">The IRS gives you one chance to pay taxes at your grant price instead of your vest price. Miss the window — and you could pay <strong>hundreds of thousands more</strong> in taxes.</p>
+        <div class="pain">
+            <div class="pain-title">The Ignorance Tax</div>
+            <div class="pain-text">If you don't file an 83(b) election within 30 days of your grant date, the IRS will tax you on the <strong>full fair market value</strong> at vest — not the price you paid. On a $1M vest, that could mean <strong>$370,000 extra</strong> in taxes. The IRS doesn't accept late filings. No exceptions.</div>
+        </div>
+        <form class="signup-form" action="/signup" method="POST">
+            <div class="input-group">
+                <input type="email" name="email" placeholder="your@email.com" required autocomplete="email">
+                <button type="submit">Start protecting my equity</button>
+            </div>
+        </form>
+        <p class="social-proof">Join <strong>2,847 startup employees</strong> who never missed their 83(b) deadline</p>
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">&#128197;</div>
+                <div class="feature-title">30-Day Countdown</div>
+                <div class="feature-desc">We track your deadline from day one and remind you at every milestone</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#128221;</div>
+                <div class="feature-title">Step-by-Step Filing</div>
+                <div class="feature-desc">Pre-filled Form 8319, state requirements, and exactly where to mail it</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#128276;</div>
+                <div class="feature-title">Peace of Mind</div>
+                <div class="feature-desc">When you file, you know your taxes are locked in at your grant price</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">&#36;</div>
+                <div class="feature-title">Tax Savings Shown</div>
+                <div class="feature-desc">See exactly how much an 83(b) saves you before you even file</div>
+            </div>
+        </div>
+        <p class="disclaimer">ThirtyDays provides filing guidance, not tax or legal advice. Consult a qualified tax professional for your specific situation. We are not affiliated with the IRS or any government agency.</p>
+    </div>
+</body>
+</html>

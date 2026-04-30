@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filing Walkthrough — ThirtyDays</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0f1e; --card: #111827; --card2: #0d1320;
+            --border: rgba(255,255,255,0.08); --text: #e8eaed;
+            --muted: #718096; --blue: #63b3ed; --blue-dim: rgba(99,179,237,0.15);
+            --green: #68d391; --green-dim: rgba(104,211,145,0.15);
+            --red: #fc8181; --red-dim: rgba(252,129,129,0.15);
+            --amber: #f6ad55; --amber-dim: rgba(246,173,85,0.15);
+        }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 40px 20px; }
+        .container { max-width: 760px; margin: 0 auto; }
+        
+        header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 40px; flex-wrap: wrap; gap: 16px; }
+        .back { color: var(--muted); text-decoration: none; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+        .back:hover { color: var(--blue); }
+        .logo { font-size: 18px; font-weight: 800; }
+        .logo span { color: var(--blue); }
+        
+        /* Countdown banner */
+        .countdown-banner {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 16px; padding: 28px 32px; margin-bottom: 28px;
+            display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;
+        }
+        .countdown-left {}
+        .countdown-number { font-size: 56px; font-weight: 800; line-height: 1;
+            {% if grant.days_remaining > 14 %}color: var(--green);{% elif grant.days_remaining > 7 %}color: var(--amber);{% else %}color: var(--red);{% endif %}
+        }
+        .countdown-label { font-size: 14px; color: var(--muted); margin-top: 4px; }
+        .countdown-right { text-align: right; }
+        .savings-big { font-size: 28px; font-weight: 800; color: var(--green); }
+        .savings-sub { font-size: 13px; color: var(--muted); }
+        
+        /* Step cards */
+        .step { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px 28px; margin-bottom: 20px; }
+        .step-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 16px; }
+        .step-num { width: 36px; height: 36px; border-radius: 50%; background: var(--blue-dim); color: var(--blue); font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .step-num.done { background: var(--green); color: #0a0f1e; }
+        .step-num.active { background: var(--blue); color: #0a0f1e; }
+        .step-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+        .step-sub { font-size: 13px; color: var(--muted); }
+        
+        /* Form 8319 preview */
+        .form-preview { background: var(--card2); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin: 16px 0; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.8; }
+        .form-row { display: flex; gap: 16px; margin-bottom: 8px; }
+        .form-label { color: var(--muted); min-width: 200px; }
+        .form-value { color: #fff; font-weight: 600; }
+        
+        /* Download button */
+        .download-btn {
+            display: inline-flex; align-items: center; gap: 10px;
+            padding: 14px 28px; background: var(--blue-dim); color: var(--blue);
+            border: 1px solid rgba(99,179,237,0.3); border-radius: 10px;
+            text-decoration: none; font-size: 15px; font-weight: 700;
+            transition: background 0.2s, transform 0.15s; margin: 12px 0;
+        }
+        .download-btn:hover { background: rgba(99,179,237,0.2); transform: translateY(-1px); }
+        
+        /* IRS address */
+        .address-box { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 16px; margin: 12px 0; }
+        .address-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+        .address-text { font-size: 15px; line-height: 1.6; }
+        
+        /* Certified mail */
+        .certified-box { background: var(--amber-dim); border: 1px solid rgba(246,173,85,0.2); border-radius: 10px; padding: 16px; margin: 16px 0; }
+        .certified-title { color: var(--amber); font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+        .certified-text { color: var(--muted); font-size: 14px; line-height: 1.5; }
+        
+        /* State notice */
+        .state-notice { background: var(--blue-dim); border: 1px solid rgba(99,179,237,0.2); border-radius: 8px; padding: 14px 16px; margin: 12px 0; font-size: 14px; color: var(--muted); }
+        .state-notice strong { color: var(--blue); }
+        
+        /* CTA button */
+        .cta-btn {
+            display: block; width: 100%; padding: 18px; font-size: 16px; font-weight: 800;
+            background: linear-gradient(135deg, var(--green), #48bb78);
+            color: #0a0f1e; border: none; border-radius: 10px; cursor: pointer;
+            text-align: center; text-decoration: none; margin-top: 16px;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(104,211,145,0.4); }
+        .cta-btn:active { transform: translateY(0); }
+        
+        /* Protected confirm */
+        .protected-state { text-align: center; padding: 60px 20px; }
+        .protected-icon { font-size: 72px; margin-bottom: 24px; }
+        .protected-title { font-size: 36px; font-weight: 800; color: var(--green); margin-bottom: 12px; }
+        .protected-sub { font-size: 18px; color: var(--muted); line-height: 1.6; max-width: 480px; margin: 0 auto 32px; }
+        .protected-stats { display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; margin-top: 32px; }
+        .stat { text-align: center; }
+        .stat-value { font-size: 24px; font-weight: 800; color: var(--green); }
+        .stat-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+        
+        .tracking-form { display: flex; gap: 10px; margin-top: 12px; }
+        .tracking-form input { flex: 1; padding: 12px 14px; font-size: 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #fff; font-family: 'Inter', sans-serif; }
+        .tracking-form button { padding: 12px 20px; background: var(--blue); color: #0a0f1e; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; }
+        
+        /* Timeline */
+        .timeline { margin: 24px 0; }
+        .timeline-item { display: flex; gap: 16px; padding: 12px 0; position: relative; }
+        .timeline-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--border); flex-shrink: 0; margin-top: 6px; }
+        .timeline-dot.done { background: var(--green); }
+        .timeline-dot.current { background: var(--blue); }
+        .timeline-content { flex: 1; }
+        .timeline-title { font-size: 15px; font-weight: 600; }
+        .timeline-time { font-size: 13px; color: var(--muted); }
+        
+        .btn-small { padding: 10px 18px; font-size: 14px; font-weight: 600; background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="/dashboard?email={{ email }}" class="back">&#8592; Back to dashboard</a>
+            <div class="logo">Thirty<span>Days</span></div>
+        </header>
+        
+        {% if filing and filing.status in ['filed', 'confirmed'] %}
+        <!-- PROTECTED STATE -->
+        <div class="protected-state">
+            <div class="protected-icon">&#127881;</div>
+            <div class="protected-title">You're Protected.</div>
+            <div class="protected-sub">
+                Your 83(b) election was filed on {{ filing.filed_date }}. When those shares vest, you'll pay taxes at <strong>{{ grant.strike_price }}/share</strong> instead of the full fair market value.<br><br>
+                {% if grant.savings %}
+                On {{ "{:,}".format(grant.shares) if grant.shares else 'your' }} shares, that's approximately <strong style="color: var(--green)">${{ "{:,.0f}".format(grant.savings) }}</strong> in taxes you keep.
+                {% endif %}
+            </div>
+            
+            <div class="protected-stats">
+                <div class="stat"><div class="stat-value">{{ grant.shares|default('—') }}</div><div class="stat-label">Shares</div></div>
+                <div class="stat"><div class="stat-value">{{ grant.strike_price }}</div><div class="stat-label">Your cost basis</div></div>
+                <div class="stat"><div class="stat-value">{{ grant.filing_deadline }}</div><div class="stat-label">Filed on time</div></div>
+            </div>
+            
+            <div style="margin-top: 40px;">
+                <a href="/dashboard?email={{ email }}" class="btn-small">&#8592; Back to dashboard</a>
+            </div>
+        </div>
+        
+        {% else %}
+        <!-- FILING WALKTHROUGH -->
+        
+        <div class="countdown-banner">
+            <div class="countdown-left">
+                <div class="countdown-number">{{ grant.days_remaining }}</div>
+                <div class="countdown-label">days remaining to file</div>
+            </div>
+            <div class="countdown-right">
+                {% if grant.savings %}
+                <div class="savings-big">${{ "{:,.0f}".format(grant.savings) }}</div>
+                <div class="savings-sub">potential tax savings with 83(b)</div>
+                {% else %}
+                <div class="savings-big">Protect your equity</div>
+                <div class="savings-sub">file by {{ grant.filing_deadline }}</div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Step 1: Your numbers -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-num done">&#10003;</div>
+                <div>
+                    <div class="step-title">Step 1: Your Grant Details</div>
+                    <div class="step-sub">These numbers go on your Form 8319</div>
+                </div>
+            </div>
+            <div class="form-preview">
+                <div class="form-row"><span class="form-label">Employer (your company):</span><span class="form-value">{{ grant.company_name or 'Your Company' }}</span></div>
+                <div class="form-row"><span class="form-label">Grant date:</span><span class="form-value">{{ grant.grant_date }}</span></div>
+                <div class="form-row"><span class="form-label">Number of shares:</span><span class="form-value">{{ "{:,}".format(grant.shares) if grant.shares else 'TBD' }}</span></div>
+                <div class="form-row"><span class="form-label">Strike price (cost per share):</span><span class="form-value">${{ "%.4f"|format(grant.strike_price) if grant.strike_price else '0.0000' }}</span></div>
+                <div class="form-row"><span class="form-label">Fair market value at grant:</span><span class="form-value">${{ "%.2f"|format(grant.fair_market_value) if grant.fair_market_value else 'TBD' }} per share</span></div>
+                <div class="form-row"><span class="form-label">Type of property:</span><span class="form-value">{{ grant.grant_type }}</span></div>
+                <div class="form-row"><span class="form-label">Restriction or condition:</span><span class="form-value">Subject to Company's standard vesting schedule (typically 4 years with 1 year cliff)</span></div>
+            </div>
+            {% if grant.fair_market_value and grant.strike_price and grant.shares %}
+            <p style="font-size: 14px; color: var(--muted); margin-top: 8px;">
+                With 83(b), you'll pay taxes on <strong style="color: var(--green)">${{ "%.4f"|format(grant.strike_price) }}</strong>/share instead of <strong style="color: var(--red)">${{ "%.2f"|format(grant.fair_market_value) }}</strong>/share. That's the entire benefit.
+            </p>
+            {% endif %}
+        </div>
+        
+        <!-- Step 2: Download Form 8319 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-num active">2</div>
+                <div>
+                    <div class="step-title">Step 2: Download IRS Form 8319</div>
+                    <div class="step-sub">The official IRS form for 83(b) elections</div>
+                </div>
+            </div>
+            <p style="font-size: 14px; color: var(--muted); margin-bottom: 12px;">
+                Form 8319 is the election form. Print it, fill it by hand (or type directly), sign it in blue ink.
+            </p>
+            <a href="https://www.irs.gov/pub/irs-pdf/f8319.pdf" target="_blank" class="download-btn">
+                &#128196; Download Form 8319 from IRS
+            </a>
+            <p style="font-size: 13px; color: var(--muted);">
+                The form is simple. Part I is about you (name, address, SSN). Part II is about the property (your grant details). Part III is the actual election statement. Sign and date the bottom.
+            </p>
+        </div>
+        
+        <!-- Step 3: Where to mail -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-num active">3</div>
+                <div>
+                    <div class="step-title">Step 3: Where to Mail</div>
+                    <div class="step-sub">Mail to the IRS center based on your state</div>
+                </div>
+            </div>
+            <div class="address-box">
+                <div class="address-label">Mailing Address</div>
+                <div class="address-text">
+                    Department of the Treasury<br>
+                    Internal Revenue Service<br>
+                    Austin, TX 73301-0002<br><br>
+                    <span style="font-size: 13px; color: var(--muted);">
+                    Note: If you use a private delivery service (FedEx, UPS), use: IRS, 3651 S. Interregional, Austin, TX 78741
+                    </span>
+                </div>
+            </div>
+            <div class="certified-box">
+                <div class="certified-title">&#9888; Use Certified Mail with Return Receipt</div>
+                <div class="certified-text">
+                    This costs about $4 but creates a legal record that the IRS received your election. 
+                    The return receipt is your proof. <strong>Don't skip this.</strong> The IRS doesn't notify you when they receive 83(b) elections.
+                </div>
+            </div>
+        </div>
+        
+        <!-- Step 4: State filing -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-num active">4</div>
+                <div>
+                    <div class="step-title">Step 4: State Tax Filing</div>
+                    <div class="step-sub">Many states require a separate 83(b) filing</div>
+                </div>
+            </div>
+            {% if grant.state %}
+            <div class="state-notice">
+                <strong>{{ grant.state }}</strong> may require a separate state 83(b) election filing. 
+                Check your state's tax agency website for the equivalent form. Some states don't require a separate filing — check before you send.
+            </div>
+            {% else %}
+            <p style="font-size: 14px; color: var(--muted);">No state selected. Most states require a separate 83(b) filing. If you selected your state above, check your state tax authority's website.</p>
+            {% endif %}
+        </div>
+        
+        <!-- Step 5: Mark filed -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-num {% if filing and filing.status == 'filed' %}done{% else %}active{% endif %}">
+                    {% if filing and filing.status == 'filed' %}&#10003;{% else %}5{% endif %}
+                </div>
+                <div>
+                    <div class="step-title">Step 5: Confirm You Filed</div>
+                    <div class="step-sub">Tell us when you've mailed — we'll celebrate with you</div>
+                </div>
+            </div>
+            
+            {% if filing and filing.certified_mail_tracking %}
+            <p style="color: var(--green); font-weight: 600; font-size: 15px; margin-bottom: 12px;">
+                &#9989; Certified mail tracking saved: {{ filing.certified_mail_tracking }}
+            </p>
+            {% endif %}
+            
+            <form method="POST" style="margin-top: 16px;">
+                <input type="hidden" name="action" value="mark_filed">
+                <button type="submit" class="cta-btn">
+                    &#9989; I filed my 83(b) election today
+                </button>
+            </form>
+            
+            <form method="POST" style="margin-top: 16px;">
+                <input type="hidden" name="action" value="update_tracking">
+                <div style="font-size: 14px; color: var(--muted); margin-bottom: 8px;">Save certified mail tracking number:</div>
+                <div class="tracking-form">
+                    <input type="text" name="certified_mail_tracking" placeholder="e.g., 7012345600001234" value="{{ filing.certified_mail_tracking or '' }}">
+                    <button type="submit">Save</button>
+                </div>
+            </form>
+            
+            <p style="font-size: 13px; color: var(--muted); margin-top: 12px;">
+                The IRS takes 6-8 weeks to process your election. You'll receive nothing in the mail — no confirmation letter. Your election is effective as of the date they receive it, which is why certified mail matters.
+            </p>
+        </div>
+        
+        {% endif %}
+    </div>
+</body>
+</html>
