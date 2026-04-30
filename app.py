@@ -84,8 +84,13 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Initialize the database schema on startup
+# Initialize the database schema on startup (re-called on every cold-start via before_request)
 init_db()
+
+@app.before_request
+def ensure_db():
+    """On Vercel serverless, /tmp is fresh per cold-start. Re-create tables on every request."""
+    init_db()
 
 # ── Core calculations ─────────────────────────────────────────────────────────
 def calculate_savings(grant):
