@@ -1,19 +1,10 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "app.py", "use": "@vercel/python" }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "app" }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index" }
   ],
   "env": {
     "FLASK_ENV": "production",
     "SECRET_KEY": "change-this-in-vercel-dashboard"
-  },
-  "crons": [
-    {
-      "path": "/api/cron/milestones",
-      "schedule": "0 14 * * *"
-    }
-  ]
+  }
 }
