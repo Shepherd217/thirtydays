@@ -77,8 +77,11 @@ def query_db(sql, args=None):
         conn.close()
 
 def get_user_by_email(email):
-    rows = query_db('SELECT * FROM users WHERE email = %s', (email,))
-    return rows[0] if rows else None
+    try:
+        rows = query_db('SELECT * FROM users WHERE email = %s', (email,))
+        return rows[0] if rows else None
+    except Exception:
+        return None
 
 def get_user_grants(user_id):
     return query_db('SELECT * FROM grants WHERE user_id = %s ORDER BY grant_date DESC', (user_id,))
@@ -101,8 +104,12 @@ def _ensure_db():
     global _db_initialized
     if _db_initialized:
         return
-    init_db()
-    _db_initialized = True
+    try:
+        init_db()
+        _db_initialized = True
+    except Exception as e:
+        print(f"[DB INIT ERROR] {e}")
+        raise
 
 def init_db():
     conn = _get_pg_conn()
@@ -153,11 +160,14 @@ def init_db():
 
 @app.before_request
 def _setup_db():
-    """Ensure DB tables exist before any request that needs the DB."""
-    # Static pages that don't need the DB
+    """Attempt DB init; if DB is unreachable, let routes handle it gracefully."""
     if request.endpoint in ('landing', 'api_health'):
         return
-    _ensure_db()
+    try:
+        _ensure_db()
+    except Exception as e:
+        print(f"[DB] init failed: {e} — continuing without DB")
+        # Don't re-raise — let the route handler deal with no DB
 
 # ── Core calculations ─────────────────────────────────────────────────────────
 def calculate_savings(grant):
