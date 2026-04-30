@@ -137,6 +137,10 @@
                     <div class="savings-amount" id="savingsAmount">$0</div>
                     <div class="savings-note">If you file within 30 days</div>
                 </div>
+                <div id="rsuInfoBox" class="savings-preview" style="background:var(--blue-dim);border-color:rgba(99,179,237,0.25);">
+                    <div class="savings-label" style="color:var(--blue);">83(b) Elections & RSUs</div>
+                    <div id="rsuInfoMessage" style="font-size:14px;color:var(--muted);margin-top:8px;line-height:1.5;"></div>
+                </div>
                 
                 <button type="submit" class="btn">Start my 30-day countdown</button>
                 <p class="help">We'll send you reminders at every milestone. <a href="/dashboard?email={{ email }}">Skip for now</a></p>
@@ -148,19 +152,47 @@
     document.querySelectorAll('input[name=shares], input[name=strike_price], input[name=fair_market_value]').forEach(function(el) {
         el.addEventListener('input', calculateSavings);
     });
+    document.querySelector('select[name=grant_type]').addEventListener('change', calculateSavings);
     
     function calculateSavings() {
+        var grantType = document.querySelector('select[name=grant_type]').value;
         var shares = parseFloat(document.querySelector('input[name=shares]').value) || 0;
         var strike = parseFloat(document.querySelector('input[name=strike_price]').value) || 0;
         var fmv = parseFloat(document.querySelector('input[name=fair_market_value]').value) || 0;
+
+        var savingsPreview = document.getElementById('savingsPreview');
+        var rsuInfoBox = document.getElementById('rsuInfoBox');
+
+        // Reset
+        savingsPreview.classList.remove('visible');
+        rsuInfoBox.classList.remove('visible');
+
+        if (grantType === 'RSU') {
+            if (shares && fmv) {
+                document.getElementById('rsuInfoMessage').textContent =
+                    '83(b) elections don\'t apply to RSUs. Your shares are already vested at grant — you pay taxes as they vest at FMV, not at a strike price. No 83(b) election is needed.';
+                rsuInfoBox.classList.add('visible');
+            }
+            return;
+        }
+
         if (shares && fmv) {
             var fullTax = shares * fmv * 0.37;
             var electionTax = shares * strike * 0.37;
             var savings = Math.max(0, fullTax - electionTax);
+            var savingsEl = document.getElementById('savingsAmount');
+            var savingsNote = savingsPreview.querySelector('.savings-note');
+
             if (savings > 0) {
-                var preview = document.getElementById('savingsPreview');
-                document.getElementById('savingsAmount').textContent = '$' + savings.toLocaleString('en-US', {maximumFractionDigits: 0});
-                preview.classList.add('visible');
+                savingsEl.textContent = '$' + savings.toLocaleString('en-US', {maximumFractionDigits: 0});
+                savingsEl.style.color = 'var(--green)';
+                savingsNote.textContent = 'If you file within 30 days';
+                savingsPreview.classList.add('visible');
+            } else if (strike === fmv && strike > 0) {
+                savingsEl.textContent = '$0';
+                savingsEl.style.color = 'var(--muted)';
+                savingsNote.textContent = 'Your strike price equals FMV — 83(b) has no immediate tax benefit';
+                savingsPreview.classList.add('visible');
             }
         }
     }

@@ -304,9 +304,13 @@
                     {% if grant.filing and grant.filing.certified_mail_tracking %}
                     Certified mail: {{ grant.filing.certified_mail_tracking }}<br>
                     {% endif %}
-                    {% if grant.savings %}
+                    {% if grant.savings and grant.savings.amount %}
                     <span style="font-size:20px;font-weight:800;color:var(--green);display:block;margin-top:8px;">
-                        ${{ "{:,.0f}".format(grant.savings) }} secured
+                        ${{ "{:,.0f}".format(grant.savings.amount) }} secured
+                    </span>
+                    {% elif grant.savings and grant.savings.reason %}
+                    <span style="font-size:14px;color:var(--muted);display:block;margin-top:8px;">
+                        {{ grant.savings.message }}
                     </span>
                     {% endif %}
                 </div>
@@ -320,10 +324,20 @@
                 <div class="countdown-deadline">Filing deadline: <strong>{{ grant.filing_deadline }}</strong></div>
             </div>
             
-            {% if grant.savings %}
+{% set savings_obj = grant.savings %}
+            {% set savings_amount = savings_obj.amount if (savings_obj and savings_obj.reason == None) else None %}
+            {% set savings_message = savings_obj.message if (savings_obj and savings_obj.reason) else None %}
+            
+            {% if savings_message %}
+            <div class="savings-banner" style="background:var(--blue-dim);border-color:rgba(99,179,237,0.25);">
+                <div class="savings-label" style="color:var(--blue);">83(b) Eligibility</div>
+                <div style="font-size:16px;color:var(--blue);margin-top:4px;">{{ savings_message }}</div>
+                <div class="savings-note" style="color:var(--muted);">An 83(b) election locks in your tax rate at grant. RSUs are already vested — different tax treatment applies.</div>
+            </div>
+            {% elif savings_amount %}
             <div class="savings-banner">
                 <div class="savings-label">Potential Tax Savings with 83(b)</div>
-                <div class="savings-amount">${{ "{:,.0f}".format(grant.savings) }}</div>
+                <div class="savings-amount">${{ "{:,.0f}".format(savings_amount) }}</div>
                 <div class="savings-note">If you file in time. Gone forever if you don't.</div>
             </div>
             {% endif %}

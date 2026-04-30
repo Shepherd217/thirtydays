@@ -81,12 +81,12 @@ def init_db():
 # ── Core calculations ─────────────────────────────────────────────────────────
 def calculate_savings(grant):
     if not grant.get('shares') or not grant.get('strike_price') or not grant.get('fair_market_value'):
-        return None
+        return {'amount': None, 'reason': 'missing_data', 'message': None}
     if grant.get('grant_type') == 'RSU':
-        return None
+        return {'amount': 0, 'reason': 'rsus_not_eligible', 'message': "83(b) elections don't apply to RSUs — you pay taxes as shares vest at FMV, not at a strike price."}
     full_tax = grant['shares'] * grant['fair_market_value'] * 0.37
     election_tax = grant['shares'] * grant['strike_price'] * 0.37
-    return max(0, full_tax - election_tax)
+    return {'amount': max(0, full_tax - election_tax), 'reason': None, 'message': None}
 
 def days_remaining(grant_date_str):
     deadline = datetime.strptime(grant_date_str, '%Y-%m-%d').date() + timedelta(days=30)
@@ -153,7 +153,8 @@ def send_email(to_email, subject, html_body):
         return False
 
 def build_milestone_email(grant, user, days_left, savings):
-    savings_str = format_savings(savings) if savings else "significant"
+    savings_amount = savings.get('amount') if isinstance(savings, dict) else savings
+    savings_str = format_savings(savings_amount) if savings_amount else "significant"
     company = grant.get('company_name', 'your company')
 
     # Tone shifts with urgency
@@ -313,7 +314,8 @@ def create_calendar_event(user_id, grant):
 
     deadline = datetime.strptime(grant['grant_date'], '%Y-%m-%d') + timedelta(days=30)
     savings = calculate_savings(grant)
-    savings_str = format_savings(savings) if savings else "tax savings"
+    savings_amount = savings.get('amount') if isinstance(savings, dict) else savings
+    savings_str = format_savings(savings_amount) if savings_amount else "tax savings"
     company = grant.get('company_name', 'Your company')
 
     # Create reminder events at multiple intervals
@@ -375,6 +377,17 @@ File at: https://thirtydays.app/grant/{grant['id']}/filing?email={
 @app.route('/')
 def landing():
     return render_template('landing.html')
+
+@app.route('/api/health')
+def api_health():
+    """Health check — if this returns 200, Flask is running."""
+    return jsonify({
+        'status': 'ok',
+        'env': os.environ.get('FLASK_ENV', 'not set'),
+        'vercel': os.environ.get('VERCEL', 'not set'),
+        'db_path': str(DATABASE),
+        'file_exists': DATABASE.exists() if 'DATABASE' in dir() else False
+    })
 
 @app.route('/signup', methods=['POST'])
 def signup():

@@ -130,8 +130,10 @@
             <div class="protected-title">You're Protected.</div>
             <div class="protected-sub">
                 Your 83(b) election was filed on {{ filing.filed_date }}. When those shares vest, you'll pay taxes at <strong>{{ grant.strike_price }}/share</strong> instead of the full fair market value.<br><br>
-                {% if grant.savings %}
-                On {{ "{:,}".format(grant.shares) if grant.shares else 'your' }} shares, that's approximately <strong style="color: var(--green)">${{ "{:,.0f}".format(grant.savings) }}</strong> in taxes you keep.
+                {% if grant.savings and grant.savings.amount %}
+                On {{ "{:,}".format(grant.shares) if grant.shares else 'your' }} shares, that's approximately <strong style="color: var(--green)">${{ "{:,.0f}".format(grant.savings.amount) }}</strong> in taxes you keep.
+                {% elif grant.savings and grant.savings.reason %}
+                {{ grant.savings.message }}
                 {% endif %}
             </div>
             
@@ -155,9 +157,11 @@
                 <div class="countdown-label">days remaining to file</div>
             </div>
             <div class="countdown-right">
-                {% if grant.savings %}
-                <div class="savings-big">${{ "{:,.0f}".format(grant.savings) }}</div>
+                {% if grant.savings and grant.savings.amount %}
+                <div class="savings-big">${{ "{:,.0f}".format(grant.savings.amount) }}</div>
                 <div class="savings-sub">potential tax savings with 83(b)</div>
+                {% elif grant.savings and grant.savings.reason %}
+                <div class="savings-big" style="font-size:18px;">{{ grant.savings.message }}</div>
                 {% else %}
                 <div class="savings-big">Protect your equity</div>
                 <div class="savings-sub">file by {{ grant.filing_deadline }}</div>
