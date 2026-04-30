@@ -33,52 +33,39 @@ CALENDAR_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 # ── Database ───────────────────────────────────────────────────────────────────
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
-    'postgresql://postgres:8d2rrfppq6rha4Qb@db.qhmqijufbrsbwizzakjs.supabase.co:5432/postgres'
+    'postgresql://postgres:8d2rrfppq6rha4Qb@db.qhmqijufbrsbwizzakjs.supabase.co:5432/postgres?sslmode=require'
 )
+
+_db_config = None
 
 def _parse_db_url(url):
     """Parse a PostgreSQL URL into components for pg8000."""
     import re
-    m = re.match(r'postgresql://(?:([^:]+):([^@]+)@)?([^:/]+)(?::(\d+))?/(.+)', url)
+    base, _, query = url.partition('?')
+    m = re.match(r'postgresql://(?:([^:@]+):([^@]+)@)?([^:/]+)(?::(\d+))?/(.+)', base)
     if not m:
         raise ValueError(f'Cannot parse DATABASE_URL: {url}')
     user, pw, host, port, db = m.groups()
+    params = dict(p.split('=', 1) for p in query.split('&') if '=' in p) if query else {}
     return {
         'user': user or 'postgres',
         'password': pw or '',
         'host': host,
         'port': int(port) if port else 5432,
         'database': db,
+        'ssl': params.get('sslmode') == 'require',
     }
 
-_db_config = None
-
 def _get_pg_conn():
-    """Return a pg8000 connection. Rows are dict-like via custom row factory."""
     global _db_config
     if _db_config is None:
         _db_config = _parse_db_url(DATABASE_URL)
-
     import pg8000
-    from pg8000 import Connection
-
-    # Patch Connection to return dict-like rows using column names
-    _orig_run = Connection.run
-
-    def run(self, sql, params=None):
-        stmt = self.prepare(sql)
-        result = stmt.fetchmany() if params is None else stmt.fetchmany(params)
-        col_names = [c.name for c in stmt._result.columns] if hasattr(stmt, '_result') and stmt._result else []
-        return [col_names, result]
-
-    conn = pg8000.connect(**_db_config)
-    return conn
+    return pg8000.connect(**_db_config)
 
 def query_db(sql, args=None):
     """Execute SQL and return list of dicts."""
-    import pg8000
-    cfg = _db_config or _parse_db_url(DATABASE_URL)
-    conn = pg8000.connect(**cfg)
+    conn = _get_pg_conn()
     cur = conn.cursor()
     try:
         cur.execute(sql, args or None)
@@ -107,10 +94,18 @@ def get_calendar_credentials(user_id):
     import json
     return json.loads(rows[0]['calendar_token'])
 
+# Deferred DB init — run on first request, not at import time
+_db_initialized = False
+
+def _ensure_db():
+    global _db_initialized
+    if _db_initialized:
+        return
+    init_db()
+    _db_initialized = True
+
 def init_db():
-    import pg8000
-    cfg = _db_config or _parse_db_url(DATABASE_URL)
-    conn = pg8000.connect(**cfg)
+    conn = _get_pg_conn()
     cur = conn.cursor()
     cur.execute('''CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -156,8 +151,13 @@ def init_db():
     cur.close()
     conn.close()
 
-# Initialize the database schema on startup
-init_db()
+@app.before_request
+def _setup_db():
+    """Ensure DB tables exist before any request that needs the DB."""
+    # Static pages that don't need the DB
+    if request.endpoint in ('landing', 'api_health'):
+        return
+    _ensure_db()
 
 # ── Core calculations ─────────────────────────────────────────────────────────
 def calculate_savings(grant):
