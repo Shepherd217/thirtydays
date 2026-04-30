@@ -13,10 +13,11 @@ import re
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
-# Use /tmp for the database on Vercel serverless (ephemeral filesystem)
+# Use /tmp for the database on Vercel serverless (ephemeral read-only filesystem)
 # Fall back to instance/ for local development
-BASE_DIR = Path(__file__).parent
-DATABASE = BASE_DIR / ('instance' if (BASE_DIR / 'instance').exists() else '.') / 'thirtydays.db'
+import os as _os
+_BASE = _os.environ.get('VERCEL', '') and '/tmp' or Path(__file__).parent
+DATABASE = Path(_BASE) / 'instance' / 'thirtydays.db'
 # Ensure the directory exists before SQLite tries to write
 DATABASE.parent.mkdir(parents=True, exist_ok=True)
 
