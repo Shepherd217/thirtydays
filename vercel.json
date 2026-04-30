@@ -3,6 +3,9 @@
   "buildCommand": "pip install --break-system-packages -r requirements.txt",
   "installCommand": "pip install --break-system-packages -r requirements.txt",
   "framework": null,
+  "routes": [
+    { "src": "/(.*)", "dest": "app.app" }
+  ],
   "env": {
     "FLASK_ENV": "production",
     "SECRET_KEY": "change-this-in-vercel-dashboard"
