@@ -7,7 +7,6 @@ from pathlib import Path
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from apscheduler.schedulers.background import BackgroundScheduler
 import threading
 import re
 
@@ -16,13 +15,11 @@ app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
 # Use /tmp for the database on Vercel serverless (ephemeral read-only filesystem)
 # Fall back to instance/ for local development
 import os as _os
-_BASE = _os.environ.get('VERCEL', '') and '/tmp' or Path(__file__).parent
+_VERCEL = _os.environ.get('VERCEL', '')
+_BASE = '/tmp' if _VERCEL == '1' else Path(__file__).parent
 DATABASE = Path(_BASE) / 'instance' / 'thirtydays.db'
 # Ensure the directory exists before SQLite tries to write
 DATABASE.parent.mkdir(parents=True, exist_ok=True)
-
-# Initialize the database schema on startup
-init_db()
 
 # ── Email config (set via environment variables) ──────────────────────────────
 SMTP_HOST = os.environ.get('SMTP_HOST', '')
@@ -86,6 +83,9 @@ def init_db():
     )''')
     conn.commit()
     conn.close()
+
+# Initialize the database schema on startup
+init_db()
 
 # ── Core calculations ─────────────────────────────────────────────────────────
 def calculate_savings(grant):
