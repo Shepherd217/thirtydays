@@ -625,12 +625,39 @@ def api_grant(grant_id):
     grant['filing'] = get_filing(grant_id)
     return jsonify(grant)
 
+# ── Cron endpoint (Vercel serverless cron) ───────────────────────────────────
+@app.route('/api/cron/milestones')
+def cron_milestones():
+    """Called daily by Vercel Cron at 2pm ET (14:00 UTC).
+    Vercel cron requests include a shared secret in headers for verification."""
+    # Optional: verify Vercel cron secret
+    import hashlib
+    secret = os.environ.get('CRON_SECRET', '')
+    if secret:
+        expected = 'Bearer ' + secret
+        if request.headers.get('Authorization', '') != expected:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+    with app.app_context():
+        run_milestone_check()
+    return jsonify({'status': 'ok', 'action': 'milestone_check_complete'})
+
 # ── Startup ───────────────────────────────────────────────────────────────────
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=run_milestone_check, trigger='cron', hour=9, minute=0, id='milestone_check')
+# ── Vercel serverless: only run scheduler if NOT on Vercel ──────────────────
+scheduler = None
+if os.environ.get('VERCEL') != '1':
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        scheduler = BackgroundScheduler()
+        scheduler.add_job(func=run_milestone_check, trigger='cron', hour=9, minute=0, id='milestone_check')
+    except ImportError:
+        pass
 
 if __name__ == '__main__':
     init_db()
-    scheduler.start()
-    print("[ThirtyDays] Milestone scheduler started — running daily at 9am ET")
+    if scheduler:
+        scheduler.start()
+        print("[ThirtyDays] Milestone scheduler started — running daily at 9am ET")
+    else:
+        print("[ThirtyDays] Serverless mode — milestone cron handled by Vercel")
     app.run(host='0.0.0.0', port=5000, debug=True)
