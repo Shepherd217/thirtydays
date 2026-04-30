@@ -4,4 +4,3 @@ python-dotenv==1.0.0
 google-auth-oauthlib==1.2.0
 google-auth==2.27.0
 google-api-python-client==2.116.0
-vercel==0.0.2
