@@ -2,7 +2,7 @@
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 from datetime import datetime, timedelta, date
-import sqlite3
+import supabase_rest as sb
 from pathlib import Path
 import smtplib
 from email.mime.text import MIMEText
@@ -30,144 +30,14 @@ FROM_NAME = os.environ.get('FROM_NAME', 'ThirtyDays')
 FROM_EMAIL = os.environ.get('FROM_EMAIL', 'hello@thirtydays.app')
 CALENDAR_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 CALENDAR_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
-# ── Database ───────────────────────────────────────────────────────────────────
-DATABASE_URL = os.environ.get(
-    'DATABASE_URL',
-    'postgresql://postgres:8d2rrfppq6rha4Qb@db.qhmqijufbrsbwizzakjs.supabase.co:5432/postgres?sslmode=require'
-)
+# ── Database (Supabase REST API — no IP allowlisting needed) ─────────────────
+# All DB ops go through the Supabase REST API (PostgREST) which is always accessible.
+# Required env vars:
+#   SUPABASE_ANON_KEY  — from Supabase Dashboard → Project Settings → API
 
-_db_config = None
-
-def _parse_db_url(url):
-    """Parse a PostgreSQL URL into components for pg8000."""
-    import re
-    base, _, query = url.partition('?')
-    m = re.match(r'postgresql://(?:([^:@]+):([^@]+)@)?([^:/]+)(?::(\d+))?/(.+)', base)
-    if not m:
-        raise ValueError(f'Cannot parse DATABASE_URL: {url}')
-    user, pw, host, port, db = m.groups()
-    params = dict(p.split('=', 1) for p in query.split('&') if '=' in p) if query else {}
-    return {
-        'user': user or 'postgres',
-        'password': pw or '',
-        'host': host,
-        'port': int(port) if port else 5432,
-        'database': db,
-        'ssl': params.get('sslmode') == 'require',
-    }
-
-def _get_pg_conn():
-    global _db_config
-    if _db_config is None:
-        _db_config = _parse_db_url(DATABASE_URL)
-    import pg8000
-    return pg8000.connect(**_db_config)
-
-def query_db(sql, args=None):
-    """Execute SQL and return list of dicts."""
-    conn = _get_pg_conn()
-    cur = conn.cursor()
-    try:
-        cur.execute(sql, args or None)
-        rows = cur.fetchall()
-        cols = [desc[0] for desc in cur.description] if cur.description else []
-        return [dict(zip(cols, r)) for r in rows]
-    finally:
-        cur.close()
-        conn.close()
-
-def get_user_by_email(email):
-    try:
-        rows = query_db('SELECT * FROM users WHERE email = %s', (email,))
-        return rows[0] if rows else None
-    except Exception:
-        return None
-
-def get_user_grants(user_id):
-    return query_db('SELECT * FROM grants WHERE user_id = %s ORDER BY grant_date DESC', (user_id,))
-
-def get_filing(grant_id):
-    rows = query_db('SELECT * FROM filings WHERE grant_id = %s', (grant_id,))
-    return rows[0] if rows else None
-
-def get_calendar_credentials(user_id):
-    rows = query_db('SELECT calendar_token FROM users WHERE id = %s', (user_id,))
-    if not rows or not rows[0].get('calendar_token'):
-        return None
-    import json
-    return json.loads(rows[0]['calendar_token'])
-
-# Deferred DB init — run on first request, not at import time
-_db_initialized = False
-
-def _ensure_db():
-    global _db_initialized
-    if _db_initialized:
-        return
-    try:
-        init_db()
-        _db_initialized = True
-    except Exception as e:
-        print(f"[DB INIT ERROR] {e}")
-        raise
-
-def init_db():
-    conn = _get_pg_conn()
-    cur = conn.cursor()
-    cur.execute('''CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        calendar_connected INTEGER DEFAULT 0,
-        calendar_token TEXT,
-        notification_email INTEGER DEFAULT 1,
-        notification_days TEXT DEFAULT '30,21,14,7,3,1',
-        email_digest INTEGER DEFAULT 0,
-        last_milestone_sent TEXT
-    )''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS grants (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        grant_date DATE NOT NULL,
-        shares INTEGER, strike_price REAL, fair_market_value REAL,
-        grant_type TEXT DEFAULT 'ISO', state TEXT DEFAULT '',
-        company_name TEXT DEFAULT '',
-        calendar_event_id TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    )''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS filings (
-        id SERIAL PRIMARY KEY,
-        grant_id INTEGER NOT NULL UNIQUE,
-        filed_date DATE, irs_submitted_date DATE, irs_confirmed_date DATE,
-        state_filed INTEGER DEFAULT 0, state_filed_date DATE,
-        certified_mail_tracking TEXT,
-        status TEXT DEFAULT 'pending',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (grant_id) REFERENCES grants(id)
-    )''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS notifications_log (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        grant_id INTEGER,
-        notification_type TEXT,
-        sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
-    )''')
-    conn.commit()
-    cur.close()
-    conn.close()
-
-@app.before_request
-def _setup_db():
-    """Attempt DB init; if DB is unreachable, let routes handle it gracefully."""
-    if request.endpoint in ('landing', 'api_health'):
-        return
-    try:
-        _ensure_db()
-    except Exception as e:
-        print(f"[DB] init failed: {e} — continuing without DB")
-        # Don't re-raise — let the route handler deal with no DB
+# ── Supabase REST client (see supabase_rest.py) ───────────────────────────────
+# Database init — tables must exist in Supabase first. Run supabase_schema.sql
+# in Supabase SQL Editor if you see "relation does not exist" errors.
 
 # ── Core calculations ─────────────────────────────────────────────────────────
 def calculate_savings(grant):
@@ -306,40 +176,40 @@ def build_milestone_email(grant, user, days_left, savings):
 
 # ── Milestone email scheduler ─────────────────────────────────────────────────
 def run_milestone_check():
-    """Called daily by APScheduler. Sends milestone emails for grants due today."""
+    """Called daily by APScheduler or Vercel cron. Sends milestone emails for grants due."""
     with app.app_context():
-        grants = query_db('''
-            SELECT g.*, u.email, u.notification_email, u.notification_days, u.id as user_id
-            FROM grants g JOIN users u ON g.user_id = u.id
-            LEFT JOIN filings f ON g.id = f.grant_id
-            WHERE (f.status IS NULL OR f.status = 'pending')
-        ''')
+        # Fetch all grants with user info — filter in Python to avoid complex PostgREST OR queries
+        all_grants = sb.sb_select("grants", {"select": "*,users(id,email,notification_email,notification_days)"})
+        if not all_grants:
+            return
 
-        for grant in grants:
-            user = {'email': grant['email'], 'id': grant['user_id']}
-            days_left = days_remaining(grant['grant_date'])
+        for grant in all_grants:
+            user = grant.get("users")
+            if not user or not isinstance(user, dict):
+                continue
+
+            user_id = user.get("id")
+            if not user_id:
+                continue
+
+            # Skip if filed — fetch filing status
+            filing = sb.get_filing(grant.get("id"))
+            if filing and filing.get("status") not in (None, "pending", ""):
+                continue
+
+            days_left = days_remaining(grant["grant_date"])
             savings = calculate_savings(grant)
-            notification_days = [int(d) for d in grant['notification_days'].split(',')]
+            notification_days_str = user.get("notification_days", "30,21,14,7,3,1")
+            notification_days = [int(d) for d in notification_days_str.split(",")]
 
-            if days_left in notification_days and grant['notification_email']:
+            if days_left in notification_days and user.get("notification_email"):
                 result = build_milestone_email(grant, user, days_left, savings)
                 if result:
                     subject, html = result
-                    sent = send_email(user['email'], subject, html)
+                    sent = send_email(user["email"], subject, html)
                     if sent:
-                        log_notification(user['id'], grant['id'], f'milestone_day_{days_left}')
-                        print(f"[MILESTONE] Sent Day {days_left} email to {user['email']} ({grant.get('company_name','')})")
-
-def log_notification(user_id, grant_id, notification_type):
-    conn = _get_pg_conn()
-    cur = conn.cursor()
-    cur.execute(
-        'INSERT INTO notifications_log (user_id, grant_id, notification_type) VALUES (%s, %s, %s)',
-        (user_id, grant_id, notification_type)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+                        sb.log_notification(user_id, grant["id"], f"milestone_day_{days_left}")
+                        print(f"[MILESTONE] Sent Day {days_left} email to {user['email']} ({grant.get('company_name', '')})")
 
 # ── Google Calendar OAuth ──────────────────────────────────────────────────────
 def get_google_auth_url(user_id):
@@ -363,7 +233,7 @@ def get_google_auth_url(user_id):
     return auth_url
 
 def create_calendar_event(user_id, grant):
-    creds_data = get_calendar_credentials(user_id)
+    creds_data = sb.get_calendar_credentials(user_id)
     if not creds_data:
         return None
 
@@ -390,8 +260,13 @@ def create_calendar_event(user_id, grant):
     for reminder_date, label, color in reminders:
         if reminder_date.date() <= date.today():
             continue
-        user_rows = query_db('SELECT email FROM users WHERE id = %s', (user_id,))
-        user_email = user_rows[0]['email'] if user_rows else ''
+        # user_email loaded from grant's embedded user or passed in
+        user_email = ''
+        if isinstance(grant.get('users'), dict):
+            user_email = grant['users'].get('email', '')
+        if not user_email:
+            user = sb.get_user_by_id(user_id)
+            user_email = user.get('email', '') if user else ''
         event = {
             'summary': f'⏰ 83(b) Filing: {company} — {savings_str} at stake',
             'location': 'IRS Filing Required',
@@ -453,21 +328,17 @@ def signup():
     if not email or '@' not in email:
         flash('Please enter a valid email address.', 'error')
         return redirect(url_for('landing'))
-    existing = get_user_by_email(email)
+    existing = sb.sb.get_user_by_email(email)
     if existing:
         return redirect(url_for('dashboard', email=email))
-    conn = _get_pg_conn()
-    try:
-        cur = conn.cursor()
-        cur.execute('INSERT INTO users (email) VALUES (%s) RETURNING id', (email,))
-        user_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-    except Exception as e:
-        conn.close()
-        if 'unique constraint' in str(e).lower() or 'duplicate' in str(e).lower():
+    new_user = sb.create_user(email)
+    if not new_user:
+        # Race condition: another request created the user first
+        existing = sb.sb.get_user_by_email(email)
+        if existing:
             return redirect(url_for('dashboard', email=email))
-        raise
+        flash('Something went wrong. Please try again.', 'error')
+        return redirect(url_for('landing'))
     return redirect(url_for('add_grant', email=email, first='1'))
 
 @app.route('/dashboard')
@@ -475,23 +346,23 @@ def dashboard():
     email = request.args.get('email', '')
     if not email:
         return redirect(url_for('landing'))
-    user = get_user_by_email(email)
+    user = sb.get_user_by_email(email)
     if not user:
         flash('User not found. Please sign up.', 'error')
         return redirect(url_for('landing'))
-    grants = get_user_grants(user['id'])
+    grants = sb.get_user_grants(user['id'])
     for g in grants:
         g['days_remaining'] = days_remaining(g['grant_date'])
         g['filing_deadline'] = filing_deadline_date(g['grant_date'])
         g['savings'] = calculate_savings(g)
-        g['filing'] = get_filing(g['id'])
+        g['filing'] = sb.get_filing(g['id'])
     return render_template('dashboard.html', user=user, grants=grants, email=email)
 
 @app.route('/grant/new', methods=['GET', 'POST'])
 def add_grant():
     email = request.args.get('email', '') or (request.form.get('email') if request.method == 'POST' else '')
     first_time = request.args.get('first', '')
-    user = get_user_by_email(email)
+    user = sb.get_user_by_email(email)
     if not user:
         return redirect(url_for('landing'))
 
@@ -509,31 +380,25 @@ def add_grant():
             flash('Grant date is required.', 'error')
             return render_template('add_grant.html', email=email, first=first_time, values=request.form)
 
-        conn = _get_pg_conn()
-        cur = conn.cursor()
-        cur.execute(
-            'INSERT INTO grants (user_id, grant_date, shares, strike_price, fair_market_value, grant_type, state, company_name) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id',
-            (user['id'], grant_date_str, shares, strike_price, fm_value, grant_type, state, company)
-        )
-        grant_id = cur.fetchone()[0]
-        cur.execute('INSERT INTO filings (grant_id, status) VALUES (%s, %s)', (grant_id, 'pending'))
-        conn.commit()
+        grant = sb.create_grant(user['id'], grant_date_str, shares, strike_price, fm_value, grant_type, state, company)
+        if not grant:
+            flash('Failed to save grant. Please try again.', 'error')
+            return render_template('add_grant.html', email=email, first=first_time, values=request.form)
+
+        grant_id = grant['id']
+        sb.create_filing(grant_id)
 
         # Auto-create calendar event if connected
         if user.get('calendar_connected'):
-            grants = query_db('SELECT * FROM grants WHERE id = %s', (grant_id,))
-            grant = grants[0] if grants else None
-            if grant:
+            grant_with_user = sb.get_grant_by_id(grant_id)
+            if grant_with_user:
                 try:
-                    event_ids = create_calendar_event(user['id'], grant)
+                    event_ids = create_calendar_event(user['id'], grant_with_user)
                     if event_ids:
-                        cur.execute('UPDATE grants SET calendar_event_id = %s WHERE id = %s', (','.join(event_ids), grant_id))
-                        conn.commit()
+                        sb.update_grant(grant_id, {'calendar_event_id': ','.join(event_ids)})
                 except Exception as e:
                     print(f"Calendar event creation failed: {e}")
 
-        cur.close()
-        conn.close()
         flash(f'Grant added! You have {days_remaining(grant_date_str)} days to file your 83(b) election.', 'success')
         return redirect(url_for('dashboard', email=email))
 
@@ -542,58 +407,43 @@ def add_grant():
 @app.route('/grant/<int:grant_id>/filing', methods=['GET', 'POST'])
 def filing_walkthrough(grant_id):
     email = request.args.get('email', '')
-    user = get_user_by_email(email)
+    user = sb.get_user_by_email(email)
     if not user:
         return redirect(url_for('landing'))
 
-    conn = _get_pg_conn()
-    cur = conn.cursor()
-    cur.execute('SELECT * FROM grants WHERE id = %s AND user_id = %s', (grant_id, user['id']))
-    row = cur.fetchone()
-    if not row:
-        cur.close()
-        conn.close()
+    grant = sb.get_grant_by_id(grant_id)
+    if not grant or grant.get('user_id') != user['id']:
         flash('Grant not found.', 'error')
         return redirect(url_for('dashboard', email=email))
-    grant = dict(row)
-    cur.close()
-    conn.close()
 
     grant['days_remaining'] = days_remaining(grant['grant_date'])
     grant['filing_deadline'] = filing_deadline_date(grant['grant_date'])
     grant['savings'] = calculate_savings(grant)
-    filing = get_filing(grant_id)
+    filing = sb.get_filing(grant_id)
 
     if request.method == 'POST':
         action = request.form.get('action', '')
-        conn = _get_pg_conn()
-        cur = conn.cursor()
         if action == 'mark_filed':
-            cur.execute("UPDATE filings SET filed_date=CURRENT_DATE, irs_submitted_date=CURRENT_DATE, status='filed' WHERE grant_id=%s", (grant_id,))
-            conn.commit()
+            sb.update_filing(grant_id, {'filed_date': 'now', 'irs_submitted_date': 'now', 'status': 'filed'})
             flash('83(b) filed! You are protected. Every share you earn is taxed at your grant price.', 'success')
-            log_notification(user['id'], grant_id, 'grant_filed')
+            sb.log_notification(user['id'], grant_id, 'grant_filed')
         elif action == 'confirm_irs':
-            cur.execute("UPDATE filings SET irs_confirmed_date=CURRENT_DATE, status='confirmed' WHERE grant_id=%s", (grant_id,))
-            conn.commit()
+            sb.update_filing(grant_id, {'irs_confirmed_date': 'now', 'status': 'confirmed'})
             flash('IRS confirmation logged. You are fully protected.', 'success')
         elif action == 'update_tracking':
             tracking = request.form.get('certified_mail_tracking', '')
-            cur.execute('UPDATE filings SET certified_mail_tracking=%s WHERE grant_id=%s', (tracking, grant_id))
-            conn.commit()
+            sb.update_filing(grant_id, {'certified_mail_tracking': tracking})
             flash('Certified mail tracking saved.', 'success')
-        cur.close()
-        conn.close()
         return redirect(url_for('filing_walkthrough', grant_id=grant_id, email=email))
 
-    filing = get_filing(grant_id)
+    filing = sb.get_filing(grant_id)
     return render_template('filing.html', grant=grant, filing=filing, email=email)
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
     email = request.args.get('email', '') or (request.form.get('email') if request.method == 'POST' else '')
-    user = get_user_by_email(email)
+    user = sb.get_user_by_email(email)
     if not user:
         return redirect(url_for('landing'))
 
@@ -604,15 +454,11 @@ def settings():
         if not notification_days:
             notification_days = '30,21,14,7,3,1'
 
-        conn = _get_pg_conn()
-        cur = conn.cursor()
-        cur.execute('''
-            UPDATE users SET notification_email=%s, email_digest=%s, notification_days=%s
-            WHERE id=%s
-        ''', (notification_email, email_digest, notification_days, user['id']))
-        conn.commit()
-        cur.close()
-        conn.close()
+        sb.update_user(user['id'], {
+            'notification_email': notification_email,
+            'email_digest': email_digest,
+            'notification_days': notification_days,
+        })
         flash('Preferences saved.', 'success')
         return redirect(url_for('settings', email=email))
 
@@ -671,45 +517,38 @@ def calendar_callback():
     }
 
     user_id = session.get('oauth_user_id', 0)
-    conn = _get_pg_conn()
-    cur = conn.cursor()
-    cur.execute('UPDATE users SET calendar_connected=1, calendar_token=%s WHERE id=%s',
-                 (json.dumps(creds_json), user_id))
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    user_rows = query_db('SELECT email FROM users WHERE id = %s', (user_id,))
+    sb.update_user(user_id, {
+        'calendar_connected': True,
+        'calendar_token': json.dumps(creds_json),
+    })
+    user = sb.get_user_by_id(user_id)
     flash('Google Calendar connected! Your deadlines will appear as events.', 'success')
-    return redirect(url_for('dashboard', email=user_rows[0]['email'] if user_rows else ''))
+    return redirect(url_for('dashboard', email=user.get('email', '') if user else ''))
 
 # ── Unsubscribe ────────────────────────────────────────────────────────────────
 @app.route('/unsubscribe')
 def unsubscribe():
     email = request.args.get('email', '')
     if email:
-        conn = _get_pg_conn()
-        cur = conn.cursor()
-        cur.execute('UPDATE users SET notification_email=0 WHERE email=%s', (email,))
-        conn.commit()
-        cur.close()
-        conn.close()
+        # Find user and update notification_email to 0
+        user = sb.get_user_by_email(email)
+        if user:
+            sb.update_user(user['id'], {'notification_email': False})
     return render_template('unsubscribed.html')
 
 # ── API ────────────────────────────────────────────────────────────────────────
 @app.route('/api/grants/<int:grant_id>')
 def api_grant(grant_id):
     email = request.args.get('email', '')
-    user = get_user_by_email(email)
+    user = sb.get_user_by_email(email)
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
-    grants = query_db('SELECT * FROM grants WHERE id = %s AND user_id = %s', (grant_id, user['id']))
-    grant = grants[0] if grants else None
-    if not grant:
+    grant = sb.get_grant_by_id(grant_id)
+    if not grant or grant.get('user_id') != user['id']:
         return jsonify({'error': 'Not found'}), 404
     grant['days_remaining'] = days_remaining(grant['grant_date'])
     grant['savings'] = calculate_savings(grant)
-    grant['filing'] = get_filing(grant_id)
+    grant['filing'] = sb.get_filing(grant_id)
     return jsonify(grant)
 
 # ── Cron endpoint (Vercel serverless cron) ───────────────────────────────────
@@ -741,7 +580,7 @@ if os.environ.get('VERCEL') != '1':
         pass
 
 if __name__ == '__main__':
-    init_db()
+    # No init_db() needed — Supabase creates tables via supabase_schema.sql
     if scheduler:
         scheduler.start()
         print("[ThirtyDays] Milestone scheduler started — running daily at 9am ET")
