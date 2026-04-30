@@ -13,7 +13,15 @@ import re
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
-DATABASE = Path(__file__).parent / 'thirtydays.db'
+# Use /tmp for the database on Vercel serverless (ephemeral filesystem)
+# Fall back to instance/ for local development
+BASE_DIR = Path(__file__).parent
+DATABASE = BASE_DIR / ('instance' if (BASE_DIR / 'instance').exists() else '.') / 'thirtydays.db'
+# Ensure the directory exists before SQLite tries to write
+DATABASE.parent.mkdir(parents=True, exist_ok=True)
+
+# Initialize the database schema on startup
+init_db()
 
 # ── Email config (set via environment variables) ──────────────────────────────
 SMTP_HOST = os.environ.get('SMTP_HOST', '')
