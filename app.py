@@ -33,36 +33,61 @@ CALENDAR_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 # ── Database ───────────────────────────────────────────────────────────────────
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
-    f'postgresql://postgres:8d2rrfppq6rha4Qb@db.qhmqijufbrsbwizzakjs.supabase.co:5432/postgres'
+    'postgresql://postgres:8d2rrfppq6rha4Qb@db.qhmqijufbrsbwizzakjs.supabase.co:5432/postgres'
 )
 
+def _parse_db_url(url):
+    """Parse a PostgreSQL URL into components for pg8000."""
+    import re
+    m = re.match(r'postgresql://(?:([^:]+):([^@]+)@)?([^:/]+)(?::(\d+))?/(.+)', url)
+    if not m:
+        raise ValueError(f'Cannot parse DATABASE_URL: {url}')
+    user, pw, host, port, db = m.groups()
+    return {
+        'user': user or 'postgres',
+        'password': pw or '',
+        'host': host,
+        'port': int(port) if port else 5432,
+        'database': db,
+    }
+
+_db_config = None
+
 def _get_pg_conn():
-    """Return a psycopg2 connection using RealDictCursor (rows work like dicts)."""
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
-    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    """Return a pg8000 connection. Rows are dict-like via custom row factory."""
+    global _db_config
+    if _db_config is None:
+        _db_config = _parse_db_url(DATABASE_URL)
+
+    import pg8000
+    from pg8000 import Connection
+
+    # Patch Connection to return dict-like rows using column names
+    _orig_run = Connection.run
+
+    def run(self, sql, params=None):
+        stmt = self.prepare(sql)
+        result = stmt.fetchmany() if params is None else stmt.fetchmany(params)
+        col_names = [c.name for c in stmt._result.columns] if hasattr(stmt, '_result') and stmt._result else []
+        return [col_names, result]
+
+    conn = pg8000.connect(**_db_config)
     return conn
 
-def query_db(sql, args=None, conn=None, commit=False):
-    """Execute SQL and return results. Handles connection lifecycle automatically."""
-    close_conn = False
-    if conn is None:
-        conn = _get_pg_conn()
-        close_conn = True
+def query_db(sql, args=None):
+    """Execute SQL and return list of dicts."""
+    import pg8000
+    cfg = _db_config or _parse_db_url(DATABASE_URL)
+    conn = pg8000.connect(**cfg)
     cur = conn.cursor()
     try:
-        cur.execute(sql, args or ())
-        if commit:
-            conn.commit()
-        # Return dict results if SELECT, else None
-        if sql.strip().upper().startswith('SELECT'):
-            rows = cur.fetchall()
-            return [dict(r) for r in rows] if cur.description else []
-        return None
+        cur.execute(sql, args or None)
+        rows = cur.fetchall()
+        cols = [desc[0] for desc in cur.description] if cur.description else []
+        return [dict(zip(cols, r)) for r in rows]
     finally:
         cur.close()
-        if close_conn:
-            conn.close()
+        conn.close()
 
 def get_user_by_email(email):
     rows = query_db('SELECT * FROM users WHERE email = %s', (email,))
@@ -83,9 +108,9 @@ def get_calendar_credentials(user_id):
     return json.loads(rows[0]['calendar_token'])
 
 def init_db():
-    import psycopg2
-    # Schema uses SERIAL (PostgreSQL auto-increment) instead of AUTOINCREMENT
-    conn = _get_pg_conn()
+    import pg8000
+    cfg = _db_config or _parse_db_url(DATABASE_URL)
+    conn = pg8000.connect(**cfg)
     cur = conn.cursor()
     cur.execute('''CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
