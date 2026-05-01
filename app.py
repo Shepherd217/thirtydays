@@ -328,13 +328,13 @@ def signup():
     if not email or '@' not in email:
         flash('Please enter a valid email address.', 'error')
         return redirect(url_for('landing'))
-    existing = sb.sb.get_user_by_email(email)
+    existing = sb.get_user_by_email(email)
     if existing:
         return redirect(url_for('dashboard', email=email))
     new_user = sb.create_user(email)
     if not new_user:
         # Race condition: another request created the user first
-        existing = sb.sb.get_user_by_email(email)
+        existing = sb.get_user_by_email(email)
         if existing:
             return redirect(url_for('dashboard', email=email))
         flash('Something went wrong. Please try again.', 'error')
